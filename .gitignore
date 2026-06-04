@@ -1,0 +1,15 @@
+# Dependencies & build
+node_modules/
+dist/
+
+# Personal data — never commit (exported localStorage backups)
+backup/
+退休試算備份-*.json
+
+# OS / editor
+.DS_Store
+*.local
+
+# Spectra app data
+.spectra/
+openspec/.vector-search.db*
