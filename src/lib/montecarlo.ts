@@ -1,5 +1,11 @@
 import { AppState } from "../types";
-import { buildSimContext, simulatePath, toReal } from "./finance";
+import {
+  annualGuaranteedIncome,
+  buildSimContext,
+  retirementSpending,
+  simulatePath,
+  toReal,
+} from "./finance";
 
 export interface MonteCarloResult {
   runs: number;
@@ -43,12 +49,12 @@ function percentile(sorted: number[], p: number): number {
 
 // Run the accumulation→decumulation path many times, drawing each year's real
 // return from Normal(mean, volatility). Success = target reached and not depleted.
-export function runMonteCarlo(state: AppState): MonteCarloResult {
+export function runMonteCarlo(state: AppState, runsOverride?: number): MonteCarloResult {
   const a = state.assumptions;
   const ctx = buildSimContext(state);
   const mean = toReal(a.nominalReturn, a.inflation);
   const vol = Math.max(0, a.returnVolatility);
-  const runs = Math.max(1, Math.floor(a.monteCarloRuns));
+  const runs = Math.max(1, Math.floor(runsOverride ?? a.monteCarloRuns));
 
   const rng = mulberry32(0x9e3779b9);
   const normal = makeNormal(rng);
@@ -71,5 +77,58 @@ export function runMonteCarlo(state: AppState): MonteCarloResult {
     p10: percentile(endings, 10),
     p50: percentile(endings, 50),
     p90: percentile(endings, 90),
+  };
+}
+
+export interface SpendingSolution {
+  targetSuccess: number;
+  maxSpending: number; // max retirement annual spending meeting the target
+  successAtMax: number; // simulated success rate at that spending
+  currentSpending: number; // user's current retirement spending, for comparison
+}
+
+// Inverse of runMonteCarlo: given a target success rate, binary-search the
+// highest retirement annual spending whose success rate meets the target.
+// Success decreases monotonically in spending, so bisection is reliable.
+export function solveMaxSpending(
+  state: AppState,
+  targetSuccess: number,
+): SpendingSolution {
+  // Cap runs per evaluation for responsiveness (see design.md).
+  const runs = Math.min(state.assumptions.monteCarloRuns, 600);
+  const guaranteed = annualGuaranteedIncome(state.assumptions);
+  const currentSpending = retirementSpending(state.income);
+
+  const successAt = (spending: number): number => {
+    const trial: AppState = {
+      ...state,
+      income: { ...state.income, retirementSpendingOverride: spending },
+    };
+    return runMonteCarlo(trial, runs).successRate;
+  };
+
+  // Lower bound: spend nothing beyond guaranteed income (gap 0) ⇒ ~100% success.
+  let lo = guaranteed;
+  // Upper bound: expand until success drops below target (bracket the root).
+  let hi = Math.max(currentSpending * 1.5, guaranteed + 600_000);
+  for (let i = 0; i < 12 && successAt(hi) >= targetSuccess; i++) hi *= 1.5;
+
+  // Bisection: keep the highest spending still meeting the target.
+  let best = lo;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (successAt(mid) >= targetSuccess) {
+      best = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  return {
+    targetSuccess,
+    maxSpending: best,
+    successAtMax: successAt(best),
+    currentSpending,
   };
 }

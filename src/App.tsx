@@ -11,6 +11,7 @@ import { CalculationBreakdown } from "./components/CalculationBreakdown";
 import { CoastFireCard } from "./components/CoastFireCard";
 import { MonteCarloPanel } from "./components/MonteCarloPanel";
 import { CashflowEventsPanel } from "./components/CashflowEventsPanel";
+import { SpendingSolverPanel } from "./components/SpendingSolverPanel";
 import { TutorialTab } from "./components/TutorialTab";
 
 type Tab = "calc" | "learn";
@@ -114,6 +115,7 @@ export default function App() {
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <CoastFireCard state={state} update={update} />
         <MonteCarloPanel state={state} update={update} />
+        <SpendingSolverPanel state={state} />
       </div>
 
       <div className="mb-6">
