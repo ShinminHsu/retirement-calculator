@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import { AppState } from "../types";
 import { Card, Field, NumberInput, PercentSlider } from "./ui";
 
@@ -76,6 +77,53 @@ export function AssumptionsPanel({
         <p className="text-xs text-slate-400">
           常用 4%；想保守或退得早用 3.5%。建議報酬率填 6–7% 各跑一次看區間，別用近年的高報酬當假設。
         </p>
+
+        <div className="pt-2">
+          <div className="mb-1 text-sm font-medium text-slate-600">退休後提領策略</div>
+          <div className="flex gap-2">
+            <StrategyTab
+              active={a.withdrawalStrategy !== "guardrails"}
+              onClick={() => update((d) => (d.assumptions.withdrawalStrategy = "fixed"))}
+            >
+              固定金額
+            </StrategyTab>
+            <StrategyTab
+              active={a.withdrawalStrategy === "guardrails"}
+              onClick={() => update((d) => (d.assumptions.withdrawalStrategy = "guardrails"))}
+            >
+              動態護欄
+            </StrategyTab>
+          </div>
+          {a.withdrawalStrategy === "guardrails" ? (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-4">
+                <Field label="護欄帶寬" hint="超出計畫率 ±此值就調整">
+                  <NumberInput
+                    value={r2(a.guardrailBand * 100)}
+                    step={5}
+                    suffix="%"
+                    onChange={(n) => update((d) => (d.assumptions.guardrailBand = n / 100))}
+                  />
+                </Field>
+                <Field label="每次調整幅度" hint="觸發時加/減的支出比例">
+                  <NumberInput
+                    value={r2(a.guardrailAdjust * 100)}
+                    step={5}
+                    suffix="%"
+                    onChange={(n) => update((d) => (d.assumptions.guardrailAdjust = n / 100))}
+                  />
+                </Field>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                市場差、提領率衝太高 → 自動少花一段；市場好 → 多花一段。成功率會提高，代價是壞年的生活費較低。
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">
+              每年提一樣多（不理會市場）。最單純，但遇到退休初期大跌最脆弱。
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex items-center gap-2">
@@ -107,4 +155,27 @@ export function AssumptionsPanel({
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function StrategyTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        active
+          ? "rounded-md bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-700"
+          : "rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50"
+      }
+    >
+      {children}
+    </button>
+  );
 }

@@ -169,6 +169,10 @@ export interface SimContext {
   annualSavings: (yearsElapsed: number) => number;
   currentAge: number;
   endAge: number;
+  withdrawalStrategy: "fixed" | "guardrails";
+  plannedRate: number; // planned withdrawal rate, guardrail reference
+  guardrailBand: number;
+  guardrailAdjust: number;
 }
 
 export function buildSimContext(state: AppState): SimContext {
@@ -198,6 +202,10 @@ export function buildSimContext(state: AppState): SimContext {
           baseSpending,
     currentAge: a.currentAge,
     endAge: Math.max(a.lifeExpectancyAge, a.currentAge + 1),
+    withdrawalStrategy: a.withdrawalStrategy ?? "fixed",
+    plannedRate: a.withdrawalRate,
+    guardrailBand: a.guardrailBand ?? 0.2,
+    guardrailAdjust: a.guardrailAdjust ?? 0.1,
   };
 }
 
@@ -217,6 +225,7 @@ export function simulatePath(
 ): SimResult {
   let invested = ctx.startInvested;
   let cash = ctx.startCash;
+  let spending = ctx.gap; // current retirement spending (adapts under guardrails)
   const series: ProjectionPoint[] = [];
   let retirementAge: number | null = null;
   let depletionAge: number | null = null;
@@ -250,7 +259,19 @@ export function simulatePath(
     if (!retired) {
       invested += ctx.annualSavings(age - ctx.currentAge);
     } else {
-      const unmet = drawDown(ctx.gap, () => [invested, cash], (i, c) => {
+      // Guardrails: adjust this year's spending from the implied withdrawal
+      // rate vs the planned rate before withdrawing (Guyton-Klinger style).
+      if (ctx.withdrawalStrategy === "guardrails" && ctx.gap > 0) {
+        const portfolio = invested + cash;
+        const impliedRate = portfolio > 0 ? spending / portfolio : Infinity;
+        const upper = ctx.plannedRate * (1 + ctx.guardrailBand);
+        const lower = ctx.plannedRate * (1 - ctx.guardrailBand);
+        if (impliedRate > upper) spending *= 1 - ctx.guardrailAdjust;
+        else if (impliedRate < lower) spending *= 1 + ctx.guardrailAdjust;
+      } else {
+        spending = ctx.gap; // fixed strategy
+      }
+      const unmet = drawDown(spending, () => [invested, cash], (i, c) => {
         invested = i;
         cash = c;
       });

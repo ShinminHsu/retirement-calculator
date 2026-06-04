@@ -82,7 +82,7 @@ function Big({
                 : "text-xs font-medium text-emerald-600"
             }
           >
-            {delta > 0 ? `延後 ${delta} 年` : `提前 ${-delta} 年`}
+            {delta > 0 ? `比調整前延後 ${delta} 年` : `比調整前提前 ${-delta} 年`}
           </span>
         )}
       </div>

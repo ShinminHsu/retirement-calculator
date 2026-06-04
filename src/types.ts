@@ -45,7 +45,12 @@ export interface Assumptions {
   coastAge: number; // age used for the Coast FIRE metric, default 65
   returnVolatility: number; // annual real-return stdev for Monte Carlo, default 0.15
   monteCarloRuns: number; // number of simulations, default 1000
+  withdrawalStrategy: WithdrawalStrategy; // default "fixed"
+  guardrailBand: number; // ± band around planned rate, default 0.2
+  guardrailAdjust: number; // spending change per breach, default 0.1
 }
+
+export type WithdrawalStrategy = "fixed" | "guardrails";
 
 // One-off cashflow event in today's purchasing power.
 // amount > 0 = inflow (bonus, inheritance); amount < 0 = outflow (down-payment).
@@ -102,6 +107,9 @@ export function defaultState(): AppState {
       coastAge: 65,
       returnVolatility: 0.15,
       monteCarloRuns: 1000,
+      withdrawalStrategy: "fixed",
+      guardrailBand: 0.2,
+      guardrailAdjust: 0.1,
     },
     cashflowEvents: [],
     quoteCache: {},
