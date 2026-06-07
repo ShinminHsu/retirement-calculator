@@ -39,7 +39,10 @@ export interface Assumptions {
   inflation: number; // e.g. 0.03
   realCashReturn: number; // real return on cash bucket, default 0
   withdrawalRate: number; // safe withdrawal rate, e.g. 0.04
-  guaranteedMonthlyIncome: number; // 勞保+勞退 monthly, TWD, default 0
+  laborPensionMonthly: number; // 勞退月領, TWD, default 0
+  laborPensionStartAge: number; // 勞退請領年齡, default 60
+  laborInsuranceMonthly: number; // 勞保老年年金月領, TWD, default 0
+  laborInsuranceStartAge: number; // 勞保請領年齡, default 65
   useFixedDca: boolean; // when true, ignore income/spending and use fixedMonthlyDca
   fixedMonthlyDca: number; // TWD/month
   coastAge: number; // age used for the Coast FIRE metric, default 65
@@ -101,7 +104,10 @@ export function defaultState(): AppState {
       inflation: 0.03,
       realCashReturn: 0,
       withdrawalRate: 0.04,
-      guaranteedMonthlyIncome: 0,
+      laborPensionMonthly: 0,
+      laborPensionStartAge: 60,
+      laborInsuranceMonthly: 0,
+      laborInsuranceStartAge: 65,
       useFixedDca: false,
       fixedMonthlyDca: 30_000,
       coastAge: 65,

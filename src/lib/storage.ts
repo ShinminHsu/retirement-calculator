@@ -14,12 +14,29 @@ function coerceState(parsed: unknown): AppState | null {
   }
   const p = parsed as Partial<AppState>;
   const base = defaultState();
-  return {
+  const merged = {
     ...base,
     ...p,
     income: { ...base.income, ...p.income },
     assumptions: { ...base.assumptions, ...p.assumptions },
   } as AppState;
+
+  // Migrate the old single guaranteed-income field (勞保+勞退 combined) to the
+  // split 勞保/勞退 model. Preserve the total by parking it under 勞保 with its
+  // old start age; the user can re-split it in the UI.
+  const legacy = (p.assumptions ?? {}) as {
+    guaranteedMonthlyIncome?: number;
+    guaranteedIncomeStartAge?: number;
+  };
+  if (
+    legacy.guaranteedMonthlyIncome != null &&
+    p.assumptions?.laborInsuranceMonthly == null &&
+    p.assumptions?.laborPensionMonthly == null
+  ) {
+    merged.assumptions.laborInsuranceMonthly = legacy.guaranteedMonthlyIncome;
+    merged.assumptions.laborInsuranceStartAge = legacy.guaranteedIncomeStartAge ?? 65;
+  }
+  return merged;
 }
 
 // Load state from localStorage. Unknown/missing/corrupt data falls back to the

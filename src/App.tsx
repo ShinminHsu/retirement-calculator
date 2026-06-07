@@ -13,8 +13,9 @@ import { MonteCarloPanel } from "./components/MonteCarloPanel";
 import { CashflowEventsPanel } from "./components/CashflowEventsPanel";
 import { SpendingSolverPanel } from "./components/SpendingSolverPanel";
 import { TutorialTab } from "./components/TutorialTab";
+import { LaborPensionTab } from "./components/LaborPensionTab";
 
-type Tab = "calc" | "learn";
+type Tab = "calc" | "learn" | "labor";
 
 export default function App() {
   const { state, setState, update, reset } = useAppState();
@@ -98,10 +99,15 @@ export default function App() {
         <TabButton active={tab === "learn"} onClick={() => setTab("learn")}>
           教學
         </TabButton>
+        <TabButton active={tab === "labor"} onClick={() => setTab("labor")}>
+          勞保勞退
+        </TabButton>
       </div>
 
       {tab === "learn" ? (
         <TutorialTab />
+      ) : tab === "labor" ? (
+        <LaborPensionTab />
       ) : (
         <>
       <div className="mb-6">
@@ -112,7 +118,7 @@ export default function App() {
         <ProjectionChart result={result} />
       </div>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+      <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <CoastFireCard state={state} update={update} />
         <MonteCarloPanel state={state} update={update} />
         <SpendingSolverPanel state={state} />

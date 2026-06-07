@@ -9,6 +9,8 @@ import {
   summarizePortfolio,
   buildBreakdown,
   coastFire,
+  buildSimContext,
+  simulatePath,
 } from "./finance";
 import { newId } from "../types";
 
@@ -23,7 +25,7 @@ describe("retirement target (floor-and-upside)", () => {
     const s = stateWith((x) => {
       x.income.workingSpending = 600_000;
       x.income.retirementSpendingOverride = null;
-      x.assumptions.guaranteedMonthlyIncome = 25_000;
+      x.assumptions.laborInsuranceMonthly = 25_000;
       x.assumptions.withdrawalRate = 0.04;
     });
     // gap = 600k - 300k = 300k; target = 300k / 0.04 = 7.5M
@@ -33,7 +35,7 @@ describe("retirement target (floor-and-upside)", () => {
   it("no guaranteed income -> 25x spending", () => {
     const s = stateWith((x) => {
       x.income.workingSpending = 600_000;
-      x.assumptions.guaranteedMonthlyIncome = 0;
+      x.assumptions.laborInsuranceMonthly = 0;
       x.assumptions.withdrawalRate = 0.04;
     });
     expect(retirementTarget(s)).toBe(15_000_000);
@@ -42,7 +44,7 @@ describe("retirement target (floor-and-upside)", () => {
   it("guaranteed income fully covers spending -> target 0", () => {
     const s = stateWith((x) => {
       x.income.workingSpending = 600_000;
-      x.assumptions.guaranteedMonthlyIncome = 60_000;
+      x.assumptions.laborInsuranceMonthly = 60_000;
     });
     expect(retirementTarget(s)).toBe(0);
   });
@@ -106,7 +108,7 @@ describe("feasibility & depletion", () => {
       x.income.workingSpending = 600_000;
       x.assumptions.currentAge = 30;
       x.assumptions.withdrawalRate = 0.04;
-      x.assumptions.guaranteedMonthlyIncome = 0;
+      x.assumptions.laborInsuranceMonthly = 0;
       x.assumptions.useFixedDca = false;
     });
     const r = project(s);
@@ -124,7 +126,7 @@ describe("feasibility & depletion", () => {
       x.income.retirementSpendingOverride = 500_000;
       x.assumptions.currentAge = 64;
       x.assumptions.lifeExpectancyAge = 95;
-      x.assumptions.guaranteedMonthlyIncome = 0;
+      x.assumptions.laborInsuranceMonthly = 0;
       x.assumptions.withdrawalRate = 0.04;
       x.assumptions.nominalReturn = 0.03;
       x.assumptions.inflation = 0.03; // real return 0
@@ -136,6 +138,42 @@ describe("feasibility & depletion", () => {
     // target = 500k/0.04 = 12.5M, never reached -> not retired, no depletion
     expect(r.retirementAge).toBeNull();
     expect(r.shortfall).toBeGreaterThan(0);
+  });
+});
+
+describe("guaranteed-income start age (bridge years)", () => {
+  // Already in retirement, real return 0. A later start age means more years of
+  // self-funding the full spend before 勞保/勞退 kicks in -> lower ending net.
+  function finalNetWithStartAge(startAge: number): number {
+    const s = stateWith((x) => {
+      x.positions = [];
+      x.cashAccounts = [{ id: "c", label: "現金", amountTwd: 10_000_000 }];
+      x.quoteCache = {};
+      x.income.annualIncome = 0;
+      x.income.workingSpending = 600_000;
+      x.income.retirementSpendingOverride = 600_000;
+      x.assumptions.currentAge = 65;
+      x.assumptions.lifeExpectancyAge = 90;
+      x.assumptions.laborInsuranceMonthly = 30_000; // 360k/yr, gap = 240k
+      x.assumptions.laborInsuranceStartAge = startAge;
+      x.assumptions.laborPensionMonthly = 0;
+      x.assumptions.withdrawalRate = 0.04;
+      x.assumptions.nominalReturn = 0.03;
+      x.assumptions.inflation = 0.03; // real return 0
+      x.assumptions.realCashReturn = 0;
+    });
+    const ctx = buildSimContext(s);
+    return simulatePath(ctx, () => 0, false).finalNet;
+  }
+
+  it("retiring before the start age burns more of the portfolio", () => {
+    expect(finalNetWithStartAge(70)).toBeLessThan(finalNetWithStartAge(65));
+  });
+
+  it("start age at/below retirement age matches the old gap-only behavior", () => {
+    // At startAge 65 (= currentAge), every retired year draws only the gap.
+    // Ages 65..90 inclusive = 26 draws * 240k gap = 6.24M from 10M -> 3.76M.
+    expect(finalNetWithStartAge(65)).toBeCloseTo(3_760_000, 0);
   });
 });
 
@@ -163,7 +201,7 @@ describe("calculation breakdown", () => {
       x.income.annualIncome = 3_000_000;
       x.income.workingSpending = 500_000;
       x.assumptions.currentAge = 30;
-      x.assumptions.guaranteedMonthlyIncome = 0;
+      x.assumptions.laborInsuranceMonthly = 0;
     });
     const b = buildBreakdown(s);
     const decum = b.years.filter((y) => y.phase === "decumulation");
@@ -177,7 +215,7 @@ describe("Coast FIRE", () => {
     const s = stateWith((x) => {
       x.income.workingSpending = 400_000; // target = 10M at 4%
       x.assumptions.withdrawalRate = 0.04;
-      x.assumptions.guaranteedMonthlyIncome = 0;
+      x.assumptions.laborInsuranceMonthly = 0;
       x.assumptions.nominalReturn = 0.04;
       x.assumptions.inflation = 0; // real return 4%
       x.assumptions.currentAge = 30;

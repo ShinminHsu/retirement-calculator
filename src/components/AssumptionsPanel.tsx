@@ -49,20 +49,49 @@ export function AssumptionsPanel({
             onChange={(n) => update((d) => (d.assumptions.realCashReturn = n / 100))}
           />
         </Field>
-        <Field label="退休後每月保證收入" hint="勞保+勞退，預設 0">
-          <NumberInput
-            value={a.guaranteedMonthlyIncome}
-            step={1000}
-            suffix="元"
-            onChange={(n) =>
-              update((d) => (d.assumptions.guaranteedMonthlyIncome = n))
-            }
-          />
-        </Field>
+      </div>
+
+      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+        <p className="text-sm font-medium text-slate-600">退休後保證收入（勞退 / 勞保）</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="勞退月領" hint="預設 0">
+            <NumberInput
+              value={a.laborPensionMonthly}
+              step={1000}
+              suffix="元"
+              onChange={(n) => update((d) => (d.assumptions.laborPensionMonthly = n))}
+            />
+          </Field>
+          <Field label="勞退請領年齡" hint="60 歲可領">
+            <NumberInput
+              value={a.laborPensionStartAge}
+              step={1}
+              suffix="歲"
+              onChange={(n) => update((d) => (d.assumptions.laborPensionStartAge = n))}
+            />
+          </Field>
+          <Field label="勞保月領" hint="預設 0">
+            <NumberInput
+              value={a.laborInsuranceMonthly}
+              step={1000}
+              suffix="元"
+              onChange={(n) => update((d) => (d.assumptions.laborInsuranceMonthly = n))}
+            />
+          </Field>
+          <Field label="勞保請領年齡" hint="65 歲可領">
+            <NumberInput
+              value={a.laborInsuranceStartAge}
+              step={1}
+              suffix="歲"
+              onChange={(n) => update((d) => (d.assumptions.laborInsuranceStartAge = n))}
+            />
+          </Field>
+        </div>
       </div>
 
       <p className="mt-2 text-xs text-slate-400">
-        勞保＋勞退請至勞保局 e 化服務 / 行動服務 App 查詢實際金額後填入；不確定可填 0（偏保守）。
+        勞退、勞保金額與請領年齡可至「勞保勞退」分頁試算，或查勞保局 App 後分別填入；不確定可填 0（偏保守）。
+        若在請領年齡前提早退休，那幾年領不到，工具會要你自己的資產先撐過去。
       </p>
 
       <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">

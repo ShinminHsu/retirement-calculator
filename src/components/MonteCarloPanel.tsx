@@ -48,15 +48,16 @@ export function MonteCarloPanel({
 
       <div className="mb-4 grid grid-cols-2 gap-4">
         <label className="block">
-          <div className="mb-1 text-xs text-slate-500">
-            報酬波動度（標準差，股債分散約 12–14%、純股票 15%+）
-          </div>
+          <div className="mb-1 text-xs text-slate-500">報酬波動度</div>
           <NumberInput
             value={round2(a.returnVolatility * 100)}
             step={1}
             suffix="%"
             onChange={(n) => update((d) => (d.assumptions.returnVolatility = n / 100))}
           />
+          <p className="mt-1 text-xs text-slate-400">
+            標準差，股債分散約 12–14%、純股票 15%+
+          </p>
         </label>
         <label className="block">
           <div className="mb-1 text-xs text-slate-500">模擬次數</div>

@@ -125,8 +125,26 @@ export function retirementSpending(income: IncomeBudget): number {
 
 // ---------- retirement target (floor-and-upside) ----------
 
+// Total guaranteed annual income once every stream (勞保 + 勞退) is flowing.
 export function annualGuaranteedIncome(a: Assumptions): number {
-  return (a.guaranteedMonthlyIncome || 0) * 12;
+  return ((a.laborPensionMonthly || 0) + (a.laborInsuranceMonthly || 0)) * 12;
+}
+
+export interface GuaranteedStream {
+  annual: number;
+  startAge: number;
+}
+
+export function guaranteedStreams(a: Assumptions): GuaranteedStream[] {
+  return [
+    { annual: (a.laborPensionMonthly || 0) * 12, startAge: a.laborPensionStartAge ?? 60 },
+    { annual: (a.laborInsuranceMonthly || 0) * 12, startAge: a.laborInsuranceStartAge ?? 65 },
+  ];
+}
+
+// Guaranteed income flowing at a given age (sum of streams already started).
+export function guaranteedIncomeAtAge(streams: GuaranteedStream[], age: number): number {
+  return streams.reduce((s, x) => s + (age >= x.startAge ? x.annual : 0), 0);
 }
 
 // gap = retirement spending - guaranteed income; target = gap / withdrawal rate.
@@ -164,7 +182,10 @@ export interface SimContext {
   rCash: number;
   realRaise: number;
   baseSpending: number;
-  gap: number;
+  retSpend: number; // full retirement spending (before guaranteed income)
+  gap: number; // retSpend - guaranteed income (steady-state self-funded need)
+  fullGuaranteed: number; // guaranteed income per year once every stream is flowing
+  streams: GuaranteedStream[]; // 勞保/勞退, each with its own start age
   eventsByAge: Map<number, number>; // age -> net signed amount
   annualSavings: (yearsElapsed: number) => number;
   currentAge: number;
@@ -193,7 +214,10 @@ export function buildSimContext(state: AppState): SimContext {
     rCash: a.realCashReturn,
     realRaise,
     baseSpending,
+    retSpend: retirementSpending(state.income),
     gap: Math.max(0, retirementSpending(state.income) - annualGuaranteedIncome(a)),
+    fullGuaranteed: annualGuaranteedIncome(a),
+    streams: guaranteedStreams(a),
     eventsByAge,
     annualSavings: (yearsElapsed: number) =>
       a.useFixedDca
@@ -233,7 +257,15 @@ export function simulatePath(
 
   for (let age = ctx.currentAge; age <= ctx.endAge; age++) {
     const netStart = invested + cash;
-    if (retirementAge === null && netStart >= ctx.target) retirementAge = age;
+    // Retiring before a guaranteed-income stream starts means self-funding that
+    // stream's worth of spending until it begins, so the nest egg needed is the
+    // steady-state target plus each stream's un-covered amount per bridge year.
+    const bridgeCost = ctx.streams.reduce(
+      (s, x) => s + x.annual * Math.max(0, x.startAge - age),
+      0,
+    );
+    const needNow = ctx.target + bridgeCost;
+    if (retirementAge === null && netStart >= needNow) retirementAge = age;
     const retired = retirementAge !== null;
 
     if (collectSeries) {
@@ -259,19 +291,29 @@ export function simulatePath(
     if (!retired) {
       invested += ctx.annualSavings(age - ctx.currentAge);
     } else {
-      // Guardrails: adjust this year's spending from the implied withdrawal
-      // rate vs the planned rate before withdrawing (Guyton-Klinger style).
+      // Guaranteed income (勞保/勞退) flowing at this age; whatever portion of
+      // the full guaranteed income hasn't started yet must be self-funded.
+      const guaranteedNow = guaranteedIncomeAtAge(ctx.streams, age);
+      const uncovered = Math.max(0, ctx.fullGuaranteed - guaranteedNow);
+      let steadySpend: number;
       if (ctx.withdrawalStrategy === "guardrails" && ctx.gap > 0) {
+        // Guardrails: adjust this year's spending from the implied withdrawal
+        // rate vs the planned rate before withdrawing (Guyton-Klinger style).
         const portfolio = invested + cash;
         const impliedRate = portfolio > 0 ? spending / portfolio : Infinity;
         const upper = ctx.plannedRate * (1 + ctx.guardrailBand);
         const lower = ctx.plannedRate * (1 - ctx.guardrailBand);
         if (impliedRate > upper) spending *= 1 - ctx.guardrailAdjust;
         else if (impliedRate < lower) spending *= 1 + ctx.guardrailAdjust;
+        steadySpend = spending;
       } else {
         spending = ctx.gap; // fixed strategy
+        steadySpend = spending;
       }
-      const unmet = drawDown(spending, () => [invested, cash], (i, c) => {
+      // steady gap covers spend once everything flows; add the not-yet-started
+      // streams during the bridge years.
+      const thisYearWithdraw = steadySpend + uncovered;
+      const unmet = drawDown(thisYearWithdraw, () => [invested, cash], (i, c) => {
         invested = i;
         cash = c;
       });
@@ -432,9 +474,9 @@ export function buildBreakdown(state: AppState): Breakdown {
 
   steps.push({
     label: "2. 退休後年缺口",
-    formula: `退休後年支出 ${f0(retSpend)} − 保證年收入 ${f0(guaranteedAnnual)}（${f0(a.guaranteedMonthlyIncome)}/月 × 12）`,
+    formula: `退休後年支出 ${f0(retSpend)} − 保證年收入 ${f0(guaranteedAnnual)}（勞退 ${f0(a.laborPensionMonthly)}/月 + 勞保 ${f0(a.laborInsuranceMonthly)}/月 × 12）`,
     result: `${f0(gap)} 元/年`,
-    note: "保證收入（勞保+勞退）先打底，只有不足的缺口才要靠自己的資產。",
+    note: `勞退自 ${a.laborPensionStartAge ?? 60} 歲、勞保自 ${a.laborInsuranceStartAge ?? 65} 歲起打底，只有不足的缺口才靠自己的資產；若在請領年齡前退休，那段期間要自己支應尚未開始的部分。`,
   });
 
   steps.push({
